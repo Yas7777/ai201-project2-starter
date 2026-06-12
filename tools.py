@@ -69,8 +69,61 @@ def search_listings(
 
     Before writing code, fill in the Tool 1 section of planning.md.
     """
-    # Replace this with your implementation
-    return []
+    
+    # Load all listings from dataset
+    listings = load_listings()
+
+    # Clean user description into searchable keywords
+    keywords = set(description.lower().split())
+
+    scored_results = []
+
+    for item in listings:
+
+        # Filter by price
+        if max_price is not None and item.get("price", float("inf")) > max_price:
+            continue
+
+        # Filter by size
+        if size:
+            requested_size = size.lower()
+            item_size = str(item.get("size", "")).lower()
+
+            # Allows "M" to match "S/M"
+            if requested_size not in item_size:
+                continue
+
+        # Build searchable text from listing fields
+        searchable_text = " ".join(
+            [
+                str(item.get("title", "")),
+                str(item.get("description", "")),
+                str(item.get("category", "")),
+                " ".join(item.get("style_tags", [])),
+                " ".join(item.get("colors", [])),
+                str(item.get("brand", "")),
+                str(item.get("platform", "")),
+            ]
+        ).lower()
+
+        # Calculate keyword overlap score
+        score = sum(
+            1 for keyword in keywords
+            if keyword in searchable_text
+        )
+
+        # Only keep relevant matches
+        if score > 0:
+            scored_results.append((score, item))
+
+    # Sort by highest relevance score first
+    scored_results.sort(
+        key=lambda result: result[0],
+        reverse=True
+    )
+
+    # Return only listing dictionaries
+    return [item for score, item in scored_results]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
@@ -101,7 +154,85 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Before writing code, fill in the Tool 2 section of planning.md.
     """
     # Replace this with your implementation
-    return ""
+
+
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+
+   
+    # 1. Validate inputs
+  
+    if not new_item or not isinstance(new_item, dict):
+        return "Error: missing or invalid new_item input"
+
+    items = wardrobe.get("items", []) if wardrobe else []
+
+    # 2. Format new item
+   
+    item_text = (
+        f"Title: {new_item.get('title', 'N/A')}\n"
+        f"Description: {new_item.get('description', 'N/A')}\n"
+        f"Category: {new_item.get('category', 'N/A')}\n"
+        f"Style tags: {new_item.get('style_tags', [])}\n"
+        f"Price: {new_item.get('price', 'N/A')}\n"
+        f"Platform: {new_item.get('platform', 'N/A')}\n"
+    )
+
+   
+    # 3. Handle wardrobe empty vs not
+   
+    if len(items) == 0:
+        wardrobe_text = (
+            "The user's wardrobe is empty. "
+            "Give general styling advice and suggest what items would pair well."
+        )
+    else:
+        wardrobe_text = "User wardrobe items:\n"
+        for i, w in enumerate(items[:10]):
+            wardrobe_text += (
+                f"{i+1}. {w.get('title', 'Unknown')} "
+                f"({w.get('category', 'unknown')}, "
+                f"size {w.get('size', 'N/A')})\n"
+            )
+
+    # 4. Build prompt
+    prompt = f"""
+    You are a fashion styling assistant.
+
+    Task:
+    Create 1–2 complete outfit suggestions using the thrifted item.
+
+    Rules:
+    - Always include the thrifted item.
+    - If wardrobe items exist, use at least one named wardrobe item per outfit.
+    - If wardrobe is empty, give general styling advice.
+    - Keep tone casual, aesthetic, and natural.
+    - Do NOT use JSON or bullet points.
+
+    THRIFTED ITEM:
+    {item_text}
+
+    WARDROBE:
+    {wardrobe_text}
+    """
+
+    # 5. Call Groq LLM
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.8,
+        )
+
+        output = response.choices[0].message.content.strip()
+
+        if not output:
+            return "Error: unable to generate outfit suggestion at this time"
+
+        return output
+
+    except Exception:
+        return "Error: unable to generate outfit suggestion at this time"
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
