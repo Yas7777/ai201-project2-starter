@@ -264,5 +264,65 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
 
     Before writing code, fill in the Tool 3 section of planning.md.
     """
-    # Replace this with your implementation
-    return ""
+
+
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+    # 1. Validate inputs
+  
+    if not outfit or not isinstance(outfit, str) or outfit.strip() == "":
+        return "Error: missing outfit suggestion for fit card generation"
+
+    if not new_item or not isinstance(new_item, dict):
+        return "Error: missing or invalid listing data for fit card generation"
+
+  
+    # 2. Extract item details
+ 
+    title = new_item.get("title", "this item")
+    price = new_item.get("price", "unknown price")
+    platform = new_item.get("platform", "thrift store")
+
+
+    # 3. Build prompt
+
+    prompt = f"""
+You are a fashion social media caption writer.
+
+Write a 2–4 sentence Instagram/TikTok caption for an outfit post.
+
+Requirements:
+- casual, aesthetic, real-user tone
+- mention exactly once:
+  - item name: {title}
+  - price: {price}
+  - platform: {platform}
+- describe the outfit vibe clearly (grunge, streetwear, minimal, etc.)
+- do NOT use bullet points or JSON
+- make it feel like a real OOTD post
+- vary wording every time
+
+OUTFIT:
+{outfit}
+"""
+
+  
+    # 4. Call Groq LLM
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=1.0,
+        )
+
+        output = response.choices[0].message.content.strip()
+
+        if not output:
+            return "Error: unable to generate fit card at this time"
+
+        return output
+
+    except Exception:
+        return "Error: unable to generate fit card at this time"
+   
