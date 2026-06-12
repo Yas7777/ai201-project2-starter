@@ -122,17 +122,62 @@ If `outfit` is empty or missing, the tool returns a descriptive error string and
 **How does information from one tool get passed to the next?**
 <!-- Describe how your agent stores and accesses state within a session. What data is tracked? How is it passed between tool calls? -->
 
----
+The agent stores all intermediate information in a session dictionary.
+The session is created at the beginning of each user request and
+contains:
+
+-   `query` (`str`): the original user message.
+-   `wardrobe` (`dict`): the user's saved wardrobe data.
+-   `description` (`str`): cleaned item description extracted from the
+    query.
+-   `size` (`str | None`): extracted size filter.
+-   `max_price` (`float | None`): extracted budget limit.
+-   `search_results` (`list[dict]`): all matching resale listings
+    returned by `search_listings`.
+-   `selected_item` (`dict | None`): the highest-ranked listing selected
+    from `search_results`.
+-   `outfit_suggestion` (`str | None`): the styling recommendation
+    returned by `suggest_outfit`.
+-   `fit_card` (`str | None`): the social caption returned by
+    `create_fit_card`.
+-   `error` (`str | None`): any error message that stops the workflow.
+
+Data flows between tools through these stored session values. The
+planning loop does not call the next tool until the required previous
+output exists. For example, `create_fit_card` receives
+`session["outfit_suggestion"]` and `session["selected_item"]`, not raw
+user input.
 
 ## Error Handling
 
 For each tool, describe the specific failure mode you're handling and what the agent does in response.
 
-| Tool | Failure mode | Agent response |
-|------|-------------|----------------|
-| search_listings | No results match the query | |
-| suggest_outfit | Wardrobe is empty | |
-| create_fit_card | Outfit input is missing or incomplete | |
+----------------------------------------------------------------------------
+  Tool              Failure mode               Agent response
+  ----------------- -------------------------- --------------------------------
+  search_listings   No results match the query The agent stops the workflow and
+                                               returns: "No listings matched
+                                               your request. Try raising your
+                                               budget, removing the size
+                                               filter, or using a broader
+                                               description." It does not call
+                                               the outfit tools because there
+                                               is no item to style.
+
+  suggest_outfit    Wardrobe is empty          The agent continues normally. It
+                                               tells the tool to generate
+                                               general styling advice using
+                                               common clothing basics instead
+                                               of wardrobe-specific pieces.
+
+  create_fit_card   Outfit input is missing or The agent stops before
+                    incomplete                 generating a caption and
+                                               returns: "I couldn't create a
+                                               fit card because the outfit
+                                               suggestion is missing. Please
+                                               generate an outfit suggestion
+                                               first."
+  -----------------------------------------------------------------------------
 
 ---
 
@@ -146,6 +191,69 @@ For each tool, describe the specific failure mode you're handling and what the a
      ASCII art, a Mermaid diagram (https://mermaid.js.org/syntax/flowchart.html), or an embedded
      sketch are all fine. You'll share this diagram with an AI tool when asking it to implement
      the planning loop and each individual tool. -->
+
+
+``` text
+User Query
+    |
+    v
++----------------+
+| Planning Loop  |
++----------------+
+    |
+    | parse description, size, budget
+    v
++-----------------------------+
+| search_listings()           |
+| input: description, size,   |
+| max_price                   |
++-----------------------------+
+    |
+    +--------------------+
+    | results = []        |
+    v                     |
+[ERROR] No listings       |
+found -> return session   |
+                          |
+    results found         |
+    v                     |
+Session: selected_item    |
+    |
+    v
++-----------------------------+
+| suggest_outfit()            |
+| input: selected_item,       |
+| wardrobe                    |
++-----------------------------+
+    |
+    +--------------------+
+    | error string        |
+    v                     |
+[ERROR] return session   |
+                          |
+    success               |
+    v
+Session: outfit_suggestion
+    |
+    v
++-----------------------------+
+| create_fit_card()           |
+| input: outfit_suggestion,   |
+| selected_item               |
++-----------------------------+
+    |
+    +--------------------+
+    | error string        |
+    v                     |
+[ERROR] return session
+                          |
+    success
+    v
+Session: fit_card
+    |
+    v
+Return completed session to User
+```
 
 ---
 
@@ -162,9 +270,49 @@ For each tool, describe the specific failure mode you're handling and what the a
      search_listings() using load_listings() from the data loader — then test it against 3 queries
      before trusting it" is a plan. -->
 
+- Which AI tool you plan to use (Claude, Copilot, ChatGPT, etc.)
+
+- What you'll give it as input (which sections of this planning.md, your agent diagram)
+
+I will use ChatGPT to implement one tool at a time. For `search_listings`, I will provide the Tool 1 specification and the starter docstring from `tools.py`, and ask it to use `load_listings()` rather than reopening the JSON file. Before running the result, I will confirm that it applies the optional price and size filters, scores text relevance, sorts best matches first, and returns `[]` when nothing matches.
+
+For `suggest_outfit`, I will provide the Tool 2 specification, the wardrobe schema notes, and the starter signature. I will ask ChatGPT to use Groq's `llama-3.3-70b-versatile` model and to handle both a populated wardrobe and an empty wardrobe. I will verify that the code does not crash on `{"items": []}`, names wardrobe pieces when available, and returns a readable error string when the API call fails.
+
+For `create_fit_card`, I will provide the Tool 3 specification and the starter signature. I will ask ChatGPT to guard against blank outfit input, include the item name, platform, and price in the prompt, and use a higher temperature for varied captions. I will call it several times with the same valid input and confirm that the output can vary.
+
+- What you expect it to produce
+
+
+- How you'll verify the output matches your spec before moving on
+After reviewing each function, I will run `pytest tests/` and confirm that every normal path and required failure mode passes before connecting the tools.
+
+
 **Milestone 3 — Individual tool implementations:**
+For this milestone, I will use ChatGPT to implement the three required tools in `tools.py`.
+
+For `search_listings`, I will provide ChatGPT with the Tool 1 section from planning.md (the function purpose, parameters, return value, filtering rules, scoring requirements, and empty-result behavior) along with the existing `search_listings()` function signature from tools.py. I expect it to generate a function that uses `load_listings()`, filters listings by size and max_price, calculates keyword relevance scores from the description, removes zero-score results, sorts matches by relevance, and returns a list of listing dictionaries. Before accepting the code, I will test queries that return matches, queries with size filters, queries with price limits, and queries that return no results.
+
+For `suggest_outfit`, I will provide ChatGPT with the Tool 2 section from planning.md, the wardrobe format, and the existing function signature. I expect it to generate code that handles both populated wardrobes and empty wardrobes, calls the Groq LLM with the correct prompt, and always returns a non-empty string. I will verify that it uses wardrobe pieces when available, provides general styling advice when the wardrobe is empty, and returns a readable error message if the API call fails.
+
+For `create_fit_card`, I will provide ChatGPT with the Tool 3 section from planning.md and the function signature from tools.py. I expect it to generate code that validates the outfit input, builds an LLM prompt using the selected item details, and creates a short social-media caption. I will verify that the caption includes the item name, price, and resale platform and that missing inputs return a clear error instead of crashing.
+
 
 **Milestone 4 — Planning loop and state management:**
+
+For this milestone, I will use ChatGPT to implement the agent workflow after the individual tools are complete.
+
+I will provide ChatGPT with the Planning Loop section from planning.md, the State Management section, the Architecture ASCII diagram, and the required tool signatures from tools.py. I expect it to generate the planning loop that creates the session dictionary, parses the user query into description/size/max_price, calls the tools in the correct order, saves each tool result into session state, and stops early when an error condition occurs.
+
+Before using the generated code, I will compare it against the architecture diagram and verify each branch:
+- If `search_listings()` returns `[]`, the loop should create an error message and stop before calling `suggest_outfit`.
+- If `suggest_outfit()` fails, the loop should store the error and stop before calling `create_fit_card`.
+- If all tools succeed, the loop should return a completed session containing the selected listing, outfit suggestion, and fit card.
+
+I will then run integration tests using example user queries to confirm that the planning loop follows the exact sequence described in planning.md.
+
+
+
+
 
 ---
 
@@ -185,8 +333,6 @@ search_listings(
     max_price=30.0,
 )
 ```
-
-
 
 **Step 2:**
 <!-- What happens next? What was returned from step 1? What tool is called now? -->
