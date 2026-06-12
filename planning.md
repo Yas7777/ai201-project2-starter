@@ -16,18 +16,26 @@ You must have at least 3 tools. The three required tools are listed — add any 
 
 **What it does:**
 <!-- Describe what this tool does in 1–2 sentences -->
+  Search the mock listings dataset for items matching the description,
+    optional size, and optional price ceiling.Returns:
+        A list of matching listing dicts, sorted by relevance (best match first).
+        Returns an empty list if nothing matches — does NOT raise an exception.
+
 
 **Input parameters:**
 <!-- List each parameter, its type, and what it represents -->
-- `description` (str): ...
-- `size` (str): ...
-- `max_price` (float): ...
+- `description` Keywords describing what the user is looking for.
+- `size` Size string such as S/M/L etc to filter by, or None to skip size filtering (case-insensitive) 
+- `max_price` Maximum price (inclusive), or None to skip price filtering.
 
 **What it returns:**
-<!-- Describe the return value — what fields does a result contain? -->
+A list of matching listing dicts, sorted by relevance (best first). Each returned dictionary includes `id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, and `platform`.
 
 **What happens if it fails or returns nothing:**
 <!-- What should the agent do if no listings match? -->
+Returns an empty list if nothing matches and doesnt return an exception. If no listing matches, it returns `[]`; it does not raise an exception. 
+
+CHECK -->The planning loop detects the empty list, sets an actionable error message, and returns early without calling `suggest_outfit`.
 
 ---
 
@@ -35,34 +43,44 @@ You must have at least 3 tools. The three required tools are listed — add any 
 
 **What it does:**
 <!-- Describe what this tool does in 1–2 sentences -->
+Given a thrifted item and the user's wardrobe, the tool suggests 1–2 complete outfits. It uses Groq's `llama-3.3-70b-versatile` model to create one or two concise styling suggestions based on what is provided. When wardrobe items exist, it asks the LLM to use named pieces from the wardrobe. When the wardrobe is empty, it asks for practical general styling advice using common basics.
 
 **Input parameters:**
 <!-- List each parameter, its type, and what it represents -->
-- `new_item` (dict): ...
-- `wardrobe` (dict): ...
+- `new_item` A listing dict (the item the user is considering buying).
+- `wardrobe` A wardrobe dict with an 'items' key containing a list of wardrobe item dicts. May be empty — handle this gracefully.
 
 **What it returns:**
 <!-- Describe the return value -->
+Returns: A non-empty string with outfit suggestions. If the wardrobe is empty, offer general styling advice for the item
+rather than raising an exception or returning an empty string.For a populated wardrobe, the response should name usable wardrobe pieces. For an empty wardrobe, it should explicitly say the saved wardrobe is empty and offer general pairings.
+
 
 **What happens if it fails or returns nothing:**
 <!-- What should the agent do if the wardrobe is empty or no outfit can be suggested? -->
+check -->
+- `wardrobe` A wardrobe dict with an 'items' key containing a list of wardrobe item dicts. May be empty — handle this gracefully. If `new_item` is missing, the tool returns a descriptive error string. If the wardrobe is empty, the tool still calls the LLM with a safe fallback prompt. If the Groq request fails or returns blank content, the tool returns a readable error string rather than raising an exception.
 
 ---
 
 ### Tool 3: create_fit_card
 
 **What it does:**
-<!-- Describe what this tool does in 1–2 sentences -->
+Generate a short, shareable outfit caption for the thrifted find. This tool uses Groq's `llama-3.3-70b-versatile` model to turn an outfit suggestion and selected listing into a  2–4 scaption suitable for an Instagram or TikTok post. It uses a higher temperature than `suggest_outfit` so repeated calls can vary.
 
 **Input parameters:**
-<!-- List each parameter, its type, and what it represents -->
-- `outfit` (...): ...
+- `outfit` (`str`): The outfit suggestion returned by `suggest_outfit`.
+- `new_item` (`dict`): The selected listing dictionary.
+
 
 **What it returns:**
-<!-- Describe the return value -->
+ A 2–4 sentence string usable as an Instagram/TikTok caption. A non-empty `str` containing a casual caption that mentions the item name, price, and resale platform naturally once each and describes the outfit vibe.
 
 **What happens if it fails or returns nothing:**
 <!-- What should the agent do if the outfit data is incomplete? -->
+
+CHECK -->
+If `outfit` is empty or missing, the tool returns a descriptive error string and does not call the LLM. If `new_item` is missing, it returns a descriptive error string. If the Groq request fails or returns blank content, it returns a readable error string rather than raising an exception.
 
 ---
 
