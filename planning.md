@@ -95,6 +95,26 @@ If `outfit` is empty or missing, the tool returns a descriptive error string and
 **How does your agent decide which tool to call next?**
 <!-- Describe the logic your planning loop uses. What does it look at? What conditions change its behavior? How does it know when it's done? -->
 
+1. Initialize a new session dictionary with the original query, wardrobe, empty parsed values, empty search results, no selected item, no outfit suggestion, no fit card, and no error.
+2. Parse the user query with regular expressions and string cleanup:
+   - Extract a dollar amount after terms such as `"under"`, `"below"`, `"max"`, or `"budget"` and store it as `max_price`.
+   - Extract a size after terms such as `"size"` or a comma-delimited size phrase and store it as `size`.
+   - Remove the extracted filter phrases from the query. The remaining cleaned text becomes `description`.
+3. Call `search_listings(description, size, max_price)` and save the returned list in `session["search_results"]`.
+4. If `session["search_results"]` is empty:
+   - Set `session["error"] = "No listings matched your request. Try raising your budget, removing the size filter, or using a broader description."`
+   - Return the session immediately.
+   - Do not call `suggest_outfit`.
+5. Otherwise, set `session["selected_item"] = session["search_results"][0]`.
+6. Call `suggest_outfit(session["selected_item"], session["wardrobe"])` and store the returned string in `session["outfit_suggestion"]`.
+7. If the outfit suggestion begins with `"I couldn't"`:
+   - Copy that message into `session["error"]`.
+   - Return the session immediately.
+   - Do not call `create_fit_card`.
+8. Otherwise, call `create_fit_card(session["outfit_suggestion"], session["selected_item"])` and store the result in `session["fit_card"]`.
+9. If the fit card begins with `"I couldn't"`, copy that message into `session["error"]`.
+10. Return the completed session.
+
 ---
 
 ## State Management
