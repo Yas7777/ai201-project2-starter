@@ -114,3 +114,73 @@ def test_suggest_outfit_invalid_item():
 
     assert isinstance(result, str)
     assert result.startswith("Error")
+
+# tool3
+from tools import create_fit_card
+
+
+# -----------------------------
+# Sample data
+# -----------------------------
+sample_item = {
+    "title": "Vintage Band Tee",
+    "price": 20,
+    "platform": "depop",
+    "description": "Faded graphic tee"
+}
+
+valid_outfit = """
+Pair the vintage band tee with baggy jeans and chunky sneakers for a grunge streetwear look.
+"""
+
+
+
+# 1. Test valid fit card output
+
+def test_create_fit_card_valid():
+    result = create_fit_card(valid_outfit, sample_item)
+
+    assert isinstance(result, str)
+    assert len(result) > 0
+    assert "Error" not in result
+
+
+
+# 2. Test output contains required fields
+
+def test_create_fit_card_contains_fields():
+    result = create_fit_card(valid_outfit, sample_item)
+
+    assert "Vintage Band Tee" in result
+    assert "20" in result
+    assert "depop" in result
+
+
+
+# 3. Test empty outfit handling
+
+def test_create_fit_card_empty_outfit():
+    result = create_fit_card("", sample_item)
+
+    assert isinstance(result, str)
+    assert result.startswith("Error")
+
+
+
+# 4. Test whitespace-only outfit handling
+
+def test_create_fit_card_whitespace_outfit():
+    result = create_fit_card("   ", sample_item)
+
+    assert isinstance(result, str)
+    assert result.startswith("Error")
+
+
+
+# 5. Test missing new_item handling
+
+def test_create_fit_card_missing_item():
+    result = create_fit_card(valid_outfit, None)
+
+    assert isinstance(result, str)
+    assert result.startswith("Error")
