@@ -190,9 +190,9 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
         wardrobe_text = "User wardrobe items:\n"
         for i, w in enumerate(items[:10]):
             wardrobe_text += (
-                f"{i+1}. {w.get('title', 'Unknown')} "
+                f"{i+1}. {w.get('name', 'Unknown')} "
                 f"({w.get('category', 'unknown')}, "
-                f"size {w.get('size', 'N/A')})\n"
+                f"colors: {', '.join(w.get('colors', [])) or 'N/A'})\n"
             )
 
     # 4. Build prompt

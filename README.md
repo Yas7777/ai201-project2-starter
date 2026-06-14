@@ -20,7 +20,7 @@ Run the app:
 python app.py
 ```
 
-Open the URL shown in your terminal (typically `http://localhost:7860`).
+Open the URL shown in your terminal (`http://localhost:7860`).
 
 ---
 
@@ -160,7 +160,7 @@ Tools never receive raw user input directly. Each tool only receives values that
 
 **Agent response:** Sets `session["error"]` to a specific, actionable message and returns the session immediately without calling the outfit tools.
 
-**Concrete test — deliberately triggered:**
+**Concrete test:**
 ```
 Query: "designer ballgown size XXS under $5"
 ```
@@ -192,9 +192,9 @@ Note: an empty wardrobe is not a failure — it is handled gracefully by switchi
 
 ## Spec Reflection
 
-**One way the spec helped:** Writing out the planning loop step-by-step in `planning.md` before any code made the early-exit logic very easy to implement. Because the conditions for stopping (`results == []`, `outfit.startswith("Error")`) were already defined in plain language, the `agent.py` code mapped almost directly to the spec. The session dictionary structure was also defined before coding, which meant there was no ambiguity about what to name each key or when to set it.
+**Spec helped in:** Writing out the planning loop step-by-step in `planning.md` before any code made the early-exit logic very easy to implement. Because the conditions for stopping (`results == []`, `outfit.startswith("Error")`) were already defined in plain language, the `agent.py` code mapped almost directly to the spec. The session dictionary structure was also defined before coding, which meant there was no ambiguity about what to name each key or when to set it.
 
-**One divergence and why:** The error handling table in `planning.md` described the `suggest_outfit` failure mode as "the agent continues normally and generates general styling advice using common clothing basics." This was imprecise — that description applies to the *empty wardrobe* path, not an API failure. When the Groq API actually fails, `suggest_outfit` returns an `"Error: ..."` string and the planning loop stops. The table was corrected to separate these two cases: an empty wardrobe triggers a different prompt branch inside the tool (not an error), while an API failure causes the tool to return an error string and the loop to exit early.
+**Divergence and why:** The error handling table in `planning.md` described the `suggest_outfit` failure mode as "the agent continues normally and generates general styling advice using common clothing basics." This was imprecise — that description applies to the *empty wardrobe* path, not an API failure. When the Groq API actually fails, `suggest_outfit` returns an `"Error: ..."` string and the planning loop stops. The table was corrected to separate these two cases: an empty wardrobe triggers a different prompt branch inside the tool (not an error), while an API failure causes the tool to return an error string and the loop to exit early.
 
 ---
 
